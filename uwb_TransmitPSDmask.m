@@ -20,10 +20,18 @@ end
 
 % 计算PSD模板参数
 peakPRF = cfg.PSDPeakPRF; % 峰值脉冲重复频率
-Fc065 = cfg.PSDFc065Factor*peakPRF; % 0.65倍峰值频率
-drop065 = cfg.PSDDrop065; % dB，0.65倍频率处的下降
-Fc08  = cfg.PSDFc08Factor*peakPRF; % 0.8倍峰值频率
-drop08 = cfg.PSDDrop08; % dB，0.8倍频率处的下降
+
+% PSD模板固定参数（符合IEEE 802.15.4a标准）
+PSD_FC065_FACTOR = 0.65;  % 0.65倍峰值频率因子
+PSD_DROP065 = -10;        % 0.65倍频率处的下降 (dB)
+PSD_FC08_FACTOR = 0.8;    % 0.8倍峰值频率因子  
+PSD_DROP08 = -18;         % 0.8倍频率处的下降 (dB)
+PSD_RBW = 1e6;            % 分辨带宽 (Hz)
+
+Fc065 = PSD_FC065_FACTOR*peakPRF; % 0.65倍峰值频率
+drop065 = PSD_DROP065; % dB，0.65倍频率处的下降
+Fc08  = PSD_FC08_FACTOR*peakPRF; % 0.8倍峰值频率
+drop08 = PSD_DROP08; % dB，0.8倍频率处的下降
 
 % 简化的PSD模板检查（这里可以根据需要添加更复杂的检查逻辑）
 % 实际应用中，这里应该计算功率谱密度并与模板进行比较
@@ -48,7 +56,7 @@ fprintf('===============================\n');
 if plotFlag
     sa = spectrumAnalyzer(SpectrumType='Power density', ChannelNames={'HPRF 802.15.4z'}, ... % 创建频谱分析仪对象，设置为功率谱密度模式
       SampleRate=cfg.SampleRate, ... % 设置采样率
-      RBWSource='Property', RBW=cfg.PSDRB, YLimits = cfg.PSDYLimits); % 设置分辨带宽和Y轴范围
+      RBWSource='Property', RBW=PSD_RBW, YLimits = cfg.PSDYLimits); % 设置分辨带宽和Y轴范围
     sa(wave); % 显示输入信号的频谱
 
     spectralMask = SpectralMaskSpecification; % 创建频谱模板对象

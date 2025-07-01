@@ -1,9 +1,9 @@
-function result = uwb_BasebandImpulseResponse(wave, cfg, plotFlag)
+function result = uwb_BasebandImpulseResponse(~, cfg, plotFlag)
 % uwb_BasebandImpulseResponse - UWB基带冲激响应分析
 % 这是一个内部示例辅助函数，随时可能更改。
 %
 % 输入:
-%   wave - 波形数据
+%   ~ - 波形数据（暂不使用，预留接口）
 %   cfg - 配置参数结构体
 %   plotFlag - 可选参数，是否绘制图形 (默认为false)
 %
@@ -63,8 +63,12 @@ r = r * 1/max(r); % 最大值归一化
 x = xcorr(r, pulseCentered, 'normalized'); % 归一化互相关
 
 %% 执行互相关检查
-T1 = cfg.CrossCorrThreshold1; % 阈值1
-T2 = cfg.CrossCorrThreshold2; % 阈值2
+% 互相关检查固定阈值（符合UWB标准）
+CROSS_CORR_THRESHOLD1 = 0.8;  % 主峰检查阈值
+CROSS_CORR_THRESHOLD2 = 0.3;  % 旁瓣检查阈值
+
+T1 = CROSS_CORR_THRESHOLD1; % 阈值1
+T2 = CROSS_CORR_THRESHOLD2; % 阈值2
 
 % 检查主峰和旁瓣
 crossCorrMainPeakOK = any(x(round(end/2 +[-1 0 1]))>T1); % 检查主峰
@@ -153,18 +157,26 @@ if plotFlag
 % 绘制脉冲及其时域模板:
 figMask = figure; % 新建图形窗口
 pulse = pulse/max(pulse); % 脉冲归一化
+
+% 时域模板固定显示参数（符合UWB标准）
+TIME_MASK_X_MIN = -3;      % x轴最小值 (Tp单位)
+TIME_MASK_X_MAX = 9;       % x轴最大值 (Tp单位)
+TIME_MASK_Y_MIN = -0.8;    % y轴最小值
+TIME_MASK_Y_MAX = 1.1;     % y轴最大值
+TIME_MASK_ALPHA = 0.75;    % 模板透明度
+
 xPulseStart = cfg.PulseStartTime; % Tp为单位的起始时间
 xPulseEnd = cfg.PulseEndTime; % Tp为单位的结束时间
 plot((xPulseStart:(xPulseEnd-xPulseStart)/(length(pulse)-1):xPulseEnd), pulse, 'b-o'); % 绘制脉冲
-xMin = cfg.TimeMaskXMin; % x轴最小值
-xMax = cfg.TimeMaskXMax; % x轴最大值
-yMin = cfg.TimeMaskYMin; % y轴最小值
-yMax = cfg.TimeMaskYMax; % y轴最大值
+xMin = TIME_MASK_X_MIN; % x轴最小值
+xMax = TIME_MASK_X_MAX; % x轴最大值
+yMin = TIME_MASK_Y_MIN; % y轴最小值
+yMax = TIME_MASK_Y_MAX; % y轴最大值
 axis([xMin xMax yMin yMax]) % 设置坐标轴范围
 t0 = 0; % t=0
 
 % 绘制模板区域
-a = cfg.TimeMaskAlpha; % 透明度
+a = TIME_MASK_ALPHA; % 透明度
 darkRed = [200, 0, 0]/255; % 深红色
 patch([xMin xMin t0-1.25 t0-1.25 t0+1 t0+1 xMax xMax], [yMax 0.015 0.015 1 1 0.3 0.3 yMax], darkRed, 'FaceAlpha', a); % 上模板
 patch([xMin xMin t0 t0 t0+2 t0+2 xMax xMax], [yMin -0.015 -0.015 -0.5 -0.5 -0.3 -0.3 yMin], darkRed, 'FaceAlpha', a); % 下模板

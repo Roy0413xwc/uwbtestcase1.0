@@ -35,21 +35,9 @@
 % PulseWidth              - 脉冲宽度(单位:ns)
 % PulseWidthMultiplier    - 脉冲宽度倍数
 % RRCBeta                 - RRC滚降系数
-% TimeMaskXMin            - 时域模板x轴最小值(Tp单位)
-% TimeMaskXMax            - 时域模板x轴最大值(Tp单位)
-% TimeMaskYMin            - 时域模板y轴最小值
-% TimeMaskYMax            - 时域模板y轴最大值
-% TimeMaskAlpha           - 模板透明度
 % PulseStartTime          - 脉冲起始时间(Tp单位)
 % PulseEndTime            - 脉冲结束时间(Tp单位)
-% CrossCorrThreshold1     - 互相关主峰检查阈值
-% CrossCorrThreshold2     - 互相关旁瓣检查阈值
 % PSDPeakPRF              - PSD模板峰值脉冲重复频率(单位:Hz)
-% PSDFc065Factor          - PSD模板0.65倍峰值频率因子
-% PSDDrop065              - PSD模板0.65倍频率处的下降(单位:dB)
-% PSDFc08Factor           - PSD模板0.8倍峰值频率因子
-% PSDDrop08               - PSD模板0.8倍频率处的下降(单位:dB)
-% PSDRB                   - PSD分析分辨带宽(单位:Hz)
 % PSDYLimits              - PSD分析Y轴范围(单位:dB)
 
 function cfg = uwb_paramsconfig()
@@ -94,24 +82,11 @@ function cfg = uwb_paramsconfig()
     'PulseWidthMultiplier', 8,  ...      % 脉冲宽度倍数
     ...% RRC脉冲参数
     'RRCBeta', 0.5,  ...                 % RRC滚降系数
-    ...% 时域模板参数
-    'TimeMaskXMin', -3,  ...             % 时域模板x轴最小值 (Tp单位)
-    'TimeMaskXMax', 9,  ...              % 时域模板x轴最大值 (Tp单位)
-    'TimeMaskYMin', -0.8,  ...           % 时域模板y轴最小值
-    'TimeMaskYMax', 1.1,  ...            % 时域模板y轴最大值
-    'TimeMaskAlpha', 0.75,  ...          % 模板透明度
+    ...% 时域模板参数（可调整）
     'PulseStartTime', -1.25,  ...        % 脉冲起始时间 (Tp单位)
     'PulseEndTime', 8,  ...              % 脉冲结束时间 (Tp单位)
-    ...% 互相关检查参数
-    'CrossCorrThreshold1', 0.8,  ...     % 主峰检查阈值
-    'CrossCorrThreshold2', 0.3,  ...     % 旁瓣检查阈值
-    ...% 传输PSD遮罩参数
+    ...% 传输PSD模板参数
     'PSDPeakPRF', 499.2e6,  ...          % 峰值脉冲重复频率 (Hz)
-    'PSDFc065Factor', 0.65,  ...         % 0.65倍峰值频率因子
-    'PSDDrop065', -10,  ...              % 0.65倍频率处的下降 (dB)
-    'PSDFc08Factor', 0.8,  ...           % 0.8倍峰值频率因子
-    'PSDDrop08', -18,  ...               % 0.8倍频率处的下降 (dB)
-    'PSDRB', 1e6,  ...                   % 分辨带宽 (Hz)
     'PSDYLimits', [-350, -40]  ...       % Y轴范围 (dB)
     ...
     ...%%————————————————————接收端参数——————————————————————————
