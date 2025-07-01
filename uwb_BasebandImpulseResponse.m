@@ -94,10 +94,6 @@ r(t==0) = (1+beta*(4/pi -1))/Tp; % t=0处的特殊处理
 
 % 归一化:
 r = r * 1/max(r); % 最大值归一化
-plot(t, r); % 绘制根升余弦脉冲
-title('RRC脉冲') % 设置子图标题
-axis([-NTp NTp min(r) max(r)]) % 设置坐标轴范围
-xlabel('时间 (ns)') % 设置x轴标签
 % 计算巴特沃斯脉冲与根升余弦脉冲的互相关
 x = uwb_xcorr(r, pulseCentered, 'normalized'); % 归一化互相关
 
