@@ -87,7 +87,11 @@ function cfg = uwb_paramsconfig()
     'PulseEndTime', 8,  ...              % 脉冲结束时间 (Tp单位)
     ...% 传输PSD模板参数
     'PSDPeakPRF', 499.2e6,  ...          % 峰值脉冲重复频率 (Hz)
-    'PSDYLimits', [-350, -40]  ...       % Y轴范围 (dB)
+    'PSDYLimits', [-350, -40],  ...      % Y轴范围 (dB)
+    ...% 互相关检查参数
+    'CrossCorrMainPeakThreshold', 0.8,  ...    % 主峰检查阈值
+    'CrossCorrSideLobeThreshold', 0.3,  ...    % 旁瓣检查阈值
+    'MainLobeDurationMin', 0.5  ...            % 主瓣最小持续时间 (ns, 将根据信道自动设置)
     ...
     ...%%————————————————————接收端参数——————————————————————————
 );

@@ -31,21 +31,20 @@ if nargin < 3
 end
 
 %% 根据信道编号设置主瓣宽度Tw（参考表16-28）
-% 根据IEEE 802.15.4a标准表16-28设置各信道对应的主瓣宽度参数
 channelNumber = cfg.Channel;
 switch channelNumber
-    case {0, 3, 5, 6, 8, 10, 12, 14}  % 信道组{0;3;5;6;8;10;12;14}
+    case {0, 1,2,3, 5, 6, 8,9, 10, 12, 13,14}  % 信道组
         Tw_ns = 0.5;  % 主瓣宽度，纳秒
         Tp_ns = 2.00; % 脉冲持续时间，纳秒
     case 7
-        Tw_ns = 0.2;  % 主瓣宽度，纳秒
-        Tp_ns = 0.92; % 脉冲持续时间，纳秒
-    case {4, 11}  % 信道组{4;11}
-        Tw_ns = 0.2;  % 主瓣宽度，纳秒
-        Tp_ns = 0.75; % 脉冲持续时间，纳秒
+        Tw_ns = 0.2;  
+        Tp_ns = 0.92; 
+    case {4, 11}  
+        Tw_ns = 0.2;  
+        Tp_ns = 0.75; 
     case 15
-        Tw_ns = 0.2;  % 主瓣宽度，纳秒
-        Tp_ns = 0.74; % 脉冲持续时间，纳秒
+        Tw_ns = 0.2;  
+        Tp_ns = 0.74; 
     otherwise
         % 默认值（对于未定义的信道）
         Tw_ns = 0.5;  % 主瓣宽度，纳秒
@@ -64,7 +63,7 @@ spc = cfg.SamplesPerPulse; % 每个脉冲的采样点数
 
 %% 创建巴特沃斯脉冲
 
-% 创建一个4阶巴特沃斯滤波器，3db带宽（截止频率）为500 MHz
+% 创建一个规定阶数的巴特沃斯滤波器，3db带宽（截止频率）为500 MHz
 N = cfg.ButterworthOrder; % 滤波器阶数
 Fc = cfg.ButterworthCutoff; % 截止频率
 Fs = Fc*spc; % 采样频率
@@ -83,8 +82,6 @@ pulse = filter(b, a, impulse); % 通过滤波器得到脉冲
 len = length(pulse); % 脉冲长度
 pulseCentered = [zeros(round(len/2)-idx, 1); pulse(1:(end-round(len/2)+idx))]; % 居中脉冲
 
-% 互相关性检查:直接进行数据计算和检查
-
 %% 创建根升余弦脉冲
 beta = cfg.RRCBeta; % 滚降系数
 t = -xSpan/2:(xSpan/(len-1)):xSpan/2; % 时间向量
@@ -97,7 +94,10 @@ r(t==0) = (1+beta*(4/pi -1))/Tp; % t=0处的特殊处理
 
 % 归一化:
 r = r * 1/max(r); % 最大值归一化
-
+plot(t, r); % 绘制根升余弦脉冲
+title('RRC脉冲') % 设置子图标题
+axis([-NTp NTp min(r) max(r)]) % 设置坐标轴范围
+xlabel('时间 (ns)') % 设置x轴标签
 % 计算巴特沃斯脉冲与根升余弦脉冲的互相关
 x = uwb_xcorr(r, pulseCentered, 'normalized'); % 归一化互相关
 
@@ -159,112 +159,81 @@ end
 % 综合互相关检查结果（包含主瓣幅度>=0.8的持续时间要求）
 crossCorrPassed = crossCorrMainPeakOK && crossCorrSideLobesOK && mainLobeDurationOK;
 
-%% 时域模板检查（完整的UWB脉冲时域特性分析）
+%% 时域模板检查
 % 脉冲归一化
 pulseNormalized = pulse/max(abs(pulse));
 
-% 1. 脉冲宽度测量（半功率点 -3dB）
-pulseAmplitude = abs(pulseNormalized);
-halfPowerLevel = max(pulseAmplitude) / sqrt(2); % -3dB点
-halfPowerIndices = find(pulseAmplitude >= halfPowerLevel);
-if ~isempty(halfPowerIndices)
-    pulseWidth_ns = (halfPowerIndices(end) - halfPowerIndices(1) + 1) * (xSpan / (len-1));
-else
-    pulseWidth_ns = 0;
+%% 时域模板合规性检查（根据IEEE 802.15.4a标准）
+% 根据用户提供的准确时域模板定义进行合规性检查
+% 时域模板定义:
+% 上模板: 
+%   t < -1.25Tp: y ≤ 0.015
+%   -1.25Tp ≤ t ≤ 1.0Tp: y ≤ 1.0
+%   t > 1.0Tp: y ≤ 0.3
+% 下模板:
+%   t < 0Tp: y ≥ -0.015
+%   0Tp ≤ t ≤ 2.0Tp: y ≥ -0.5
+%   t > 2.0Tp: y ≥ -0.3
+
+% 生成脉冲的时间轴（以Tp为单位）
+xPulseStart = cfg.PulseStartTime; % Tp为单位的起始时间
+xPulseEnd = cfg.PulseEndTime; % Tp为单位的结束时间
+timePulse_Tp = xPulseStart:(xPulseEnd-xPulseStart)/(length(pulse)-1):xPulseEnd;
+
+% 初始化合规性检查结果
+timeMaskPassed = true;
+violationPoints = [];
+violationMessages = {};
+
+% 检查每个脉冲采样点是否在时域模板内
+for i = 1:length(pulseNormalized)
+    t = timePulse_Tp(i);  % 当前时间点（Tp单位）
+    y = pulseNormalized(i);  % 当前幅度值
+    
+    % 计算上模板限制（根据用户描述）
+    if t < -1.25
+        upperLimit = 0.015;
+    elseif t <= 1.0
+        % -1.25Tp到1.0Tp: 幅度限制为1.0
+        upperLimit = 1.0;
+    else
+        % t > 1.0Tp: 幅度限制为0.3
+        upperLimit = 0.3;
+    end
+    
+    % 计算下模板限制（根据用户描述）
+    if t < 0
+        lowerLimit = -0.015;
+    elseif t <= 2.0
+        % 0Tp到2.0Tp: 幅度限制为-0.5
+        lowerLimit = -0.5;
+    else
+        % t > 2.0Tp: 幅度限制为-0.3
+        lowerLimit = -0.3;
+    end
+    
+    % 检查是否违反模板
+    if y > upperLimit || y < lowerLimit
+        timeMaskPassed = false;
+        violationPoints(end+1) = i;
+        if y > upperLimit
+            violationMessages{end+1} = sprintf('时间 %.2fTp: 幅度 %.3f 超过上限 %.3f', t, y, upperLimit);
+        else
+            violationMessages{end+1} = sprintf('时间 %.2fTp: 幅度 %.3f 低于下限 %.3f', t, y, lowerLimit);
+        end
+    end
 end
 
-% 2. 上升时间测量（10%-90%幅度）
-[maxAmp, maxIdx] = max(pulseAmplitude);
-level10 = 0.1 * maxAmp;
-level90 = 0.9 * maxAmp;
-
-% 寻找上升沿的10%和90%点
-risingEdge = pulseAmplitude(1:maxIdx);
-idx10_rising = find(risingEdge >= level10, 1, 'first');
-idx90_rising = find(risingEdge >= level90, 1, 'first');
-
-if ~isempty(idx10_rising) && ~isempty(idx90_rising)
-    riseTime_samples = idx90_rising - idx10_rising;
-    riseTime_ns = riseTime_samples * (xSpan / (len-1));
+% 统计违规信息
+numViolations = length(violationPoints);
+if numViolations > 0
+    violationSummary = sprintf('时域模板违规: %d个点超出模板范围 (%.1f%%)', ...
+                              numViolations, 100*numViolations/length(pulseNormalized));
 else
-    riseTime_ns = 0;
+    violationSummary = '时域模板检查: 所有点均在模板范围内';
 end
 
-% 3. 下降时间测量（90%-10%幅度）
-fallingEdge = pulseAmplitude(maxIdx:end);
-idx90_falling = find(fallingEdge <= level90, 1, 'first') + maxIdx - 1;
-idx10_falling = find(fallingEdge <= level10, 1, 'first') + maxIdx - 1;
-
-if ~isempty(idx90_falling) && ~isempty(idx10_falling)
-    fallTime_samples = idx10_falling - idx90_falling;
-    fallTime_ns = fallTime_samples * (xSpan / (len-1));
-else
-    fallTime_ns = 0;
-end
-
-% 4. 过冲/欠冲检查
-% 寻找脉冲前后的稳态值
-preStableRegion = pulseNormalized(1:round(len*0.1));   % 前10%区域
-postStableRegion = pulseNormalized(round(len*0.9):end); % 后10%区域
-baselineLevel = mean([preStableRegion; postStableRegion]);
-
-% 计算过冲（正方向超调）
-overshoot = max(pulseNormalized) - 1; % 相对于归一化峰值的过冲
-if overshoot < 0, overshoot = 0; end
-
-% 计算欠冲（负方向最大偏移）
-undershoot = min(pulseNormalized) - baselineLevel;
-if undershoot > 0, undershoot = 0; end
-undershoot = abs(undershoot);
-
-% 5. 脉冲对称性检查
-leftHalf = pulseAmplitude(1:maxIdx);
-rightHalf = pulseAmplitude(maxIdx:end);
-% 调整长度使其相等
-minLen = min(length(leftHalf), length(rightHalf));
-leftHalf = leftHalf(end-minLen+1:end);
-rightHalf = rightHalf(1:minLen);
-% 计算对称性相关系数
-symmetryCorr = corrcoef(leftHalf, flipud(rightHalf));
-if size(symmetryCorr, 1) > 1
-    symmetryCoeff = symmetryCorr(1,2);
-else
-    symmetryCoeff = 1; % 完全对称
-end
-
-% 6. 频谱纯度检查（时域）
-% 计算脉冲的THD（总谐波失真）近似
-pulseFFT = fft(pulseNormalized, 2048);
-pulsePSD = abs(pulseFFT).^2;
-fundamentalIdx = find(pulsePSD == max(pulsePSD), 1);
-harmonicPower = sum(pulsePSD) - pulsePSD(fundamentalIdx);
-THD_approx = sqrt(harmonicPower / pulsePSD(fundamentalIdx)) * 100; % 百分比
-
-%% 时域模板合规性检查
-% UWB脉冲时域标准要求（IEEE 802.15.4a）
-PULSE_WIDTH_MIN = 0.5;    % ns，最小脉冲宽度
-PULSE_WIDTH_MAX = 10.0;   % ns，最大脉冲宽度
-RISE_TIME_MAX = 2.0;      % ns，最大上升时间
-FALL_TIME_MAX = 2.0;      % ns，最大下降时间
-OVERSHOOT_MAX = 0.1;      % 10%，最大过冲
-UNDERSHOOT_MAX = 0.1;     % 10%，最大欠冲
-SYMMETRY_MIN = 0.8;       % 最小对称性系数
-THD_MAX = 20;             % %，最大总谐波失真
-
-% 执行各项检查
-pulseWidthOK = (pulseWidth_ns >= PULSE_WIDTH_MIN) && (pulseWidth_ns <= PULSE_WIDTH_MAX);
-riseTimeOK = riseTime_ns <= RISE_TIME_MAX;
-fallTimeOK = fallTime_ns <= FALL_TIME_MAX;
-overshootOK = overshoot <= OVERSHOOT_MAX;
-undershootOK = undershoot <= UNDERSHOOT_MAX;
-symmetryOK = symmetryCoeff >= SYMMETRY_MIN;
-thdOK = THD_approx <= THD_MAX;
-
-% 综合时域模板检查结果
-timeMaskPassed = pulseWidthOK && riseTimeOK && fallTimeOK && ...
-                 overshootOK && undershootOK && symmetryOK && thdOK;
-
-% 准备返回结果
+%% 准备返回结果
 result.crossCorrPassed = crossCorrPassed;
 result.timeMaskPassed = timeMaskPassed;
 result.overallPassed = crossCorrPassed && timeMaskPassed;
@@ -277,28 +246,23 @@ result.crossCorrAnalysis.mainLobeDuration_ns = mainLobeDuration_ns;
 result.crossCorrAnalysis.mainLobeThreshold = T1;
 result.crossCorrAnalysis.sideLobeThreshold = T2;
 result.crossCorrAnalysis.sideLobeViolationMsg = sideLobeViolationMsg;
-% 添加Tw和信道信息
-result.crossCorrAnalysis.mainLobeWidthTw_ns = Tw_ns;
-result.crossCorrAnalysis.channelNumber = channelNumber;
+% 添加时域模板检查结果
+result.timeDomainMask.passed = timeMaskPassed;
+result.timeDomainMask.numViolations = numViolations;
+result.timeDomainMask.violationPercentage = 100*numViolations/length(pulseNormalized);
+result.timeDomainMask.violationSummary = violationSummary;
+result.timeDomainMask.violationMessages = violationMessages;
+result.timeDomainMask.violationPoints = violationPoints;
 result.crossCorrAnalysis.pulseDurationTp_ns = Tp_ns;
 
-% 添加详细的时域分析结果
-result.timeDomainAnalysis.pulseWidth_ns = pulseWidth_ns;
-result.timeDomainAnalysis.riseTime_ns = riseTime_ns;
-result.timeDomainAnalysis.fallTime_ns = fallTime_ns;
-result.timeDomainAnalysis.overshoot = overshoot;
-result.timeDomainAnalysis.undershoot = undershoot;
-result.timeDomainAnalysis.symmetryCoeff = symmetryCoeff;
-result.timeDomainAnalysis.THD_percent = THD_approx;
+% 添加详细的时域分析结果（基于时域模板检查）
+% 注意：以下为简化的时域特性分析，主要基于时域模板合规性
+result.timeDomainAnalysis.templateCompliance = timeMaskPassed;
+result.timeDomainAnalysis.pulseNormalized = pulseNormalized;
+result.timeDomainAnalysis.timePulse_Tp = timePulse_Tp;
 
-% 添加各项检查结果
-result.timeDomainChecks.pulseWidthOK = pulseWidthOK;
-result.timeDomainChecks.riseTimeOK = riseTimeOK;
-result.timeDomainChecks.fallTimeOK = fallTimeOK;
-result.timeDomainChecks.overshootOK = overshootOK;
-result.timeDomainChecks.undershootOK = undershootOK;
-result.timeDomainChecks.symmetryOK = symmetryOK;
-result.timeDomainChecks.thdOK = thdOK;
+% 添加时域模板检查结果
+result.timeDomainChecks.timeMaskPassed = timeMaskPassed;
 
 % 输出检查结果
 fprintf('=== UWB基带冲激响应分析结果 ===\n');
@@ -326,38 +290,31 @@ end
 % 详细的时域模板检查输出
 if timeMaskPassed
     fprintf('✓ 时域模板检查通过\n');
+    fprintf('  - %s\n', violationSummary);
 else
     fprintf('✗ 时域模板检查失败\n');
+    fprintf('  - %s\n', violationSummary);
+    if numViolations > 0 && numViolations <= 5
+        % 如果违规点不多，显示具体违规信息
+        for i = 1:numViolations
+            fprintf('    违规点 %d: %s\n', i, violationMessages{i});
+        end
+    elseif numViolations > 5
+        % 如果违规点太多，只显示前几个
+        for i = 1:3
+            fprintf('    违规点 %d: %s\n', i, violationMessages{i});
+        end
+        fprintf('    ... 还有 %d 个违规点\n', numViolations - 3);
+    end
 end
 
-fprintf('  时域特性分析:\n');
-fprintf('  - 脉冲宽度: %.3f ns (要求: %.1f-%.1f ns) %s\n', ...
-        pulseWidth_ns, PULSE_WIDTH_MIN, PULSE_WIDTH_MAX, ...
-        char(pulseWidthOK*10004 + ~pulseWidthOK*10060));
-fprintf('  - 上升时间: %.3f ns (要求: ≤%.1f ns) %s\n', ...
-        riseTime_ns, RISE_TIME_MAX, ...
-        char(riseTimeOK*10004 + ~riseTimeOK*10060));
-fprintf('  - 下降时间: %.3f ns (要求: ≤%.1f ns) %s\n', ...
-        fallTime_ns, FALL_TIME_MAX, ...
-        char(fallTimeOK*10004 + ~fallTimeOK*10060));
-fprintf('  - 过冲: %.2f%% (要求: ≤%.0f%%) %s\n', ...
-        overshoot*100, OVERSHOOT_MAX*100, ...
-        char(overshootOK*10004 + ~overshootOK*10060));
-fprintf('  - 欠冲: %.2f%% (要求: ≤%.0f%%) %s\n', ...
-        undershoot*100, UNDERSHOOT_MAX*100, ...
-        char(undershootOK*10004 + ~undershootOK*10060));
-fprintf('  - 对称性: %.3f (要求: ≥%.1f) %s\n', ...
-        symmetryCoeff, SYMMETRY_MIN, ...
-        char(symmetryOK*10004 + ~symmetryOK*10060));
-fprintf('  - THD: %.1f%% (要求: ≤%.0f%%) %s\n', ...
-        THD_approx, THD_MAX, ...
-        char(thdOK*10004 + ~thdOK*10060));
+fprintf('  时域模板合规性分析:\n');
+fprintf('  - 脉冲采样点总数: %d\n', length(pulseNormalized));
+fprintf('  - 时间范围: %.2f 到 %.2f Tp\n', timePulse_Tp(1), timePulse_Tp(end));
+fprintf('  - 脉冲幅度范围: %.3f 到 %.3f\n', min(pulseNormalized), max(pulseNormalized));
 
 if result.overallPassed
     result.message = sprintf('所有HRP UWB物理层测试项均通过，脉冲符合标准要求 (主瓣幅度>=0.8持续时间: %.2f ns)', mainLobeDuration_ns);
-    fprintf('✓ 整体分析: 所有HRP UWB物理层测试项均通过\n');
-    fprintf('  符合HRP UWB发射机互相关要求：主瓣≥%.1f，旁瓣≤%.1f，持续时间Tw≥%.1f ns (信道%d)\n', ...
-            T1, T2, MIN_MAINLOBE_DURATION_NS, channelNumber);
 else
     result.message = '部分HRP UWB物理层测试项失败，请检查脉冲参数以符合标准要求';
     fprintf('✗ 整体分析: 部分HRP UWB物理层测试项失败\n');
@@ -399,9 +356,7 @@ if plotFlag
         mainLobeTimeEnd = timeAxis(mainLobeIndices(end));
         fill([mainLobeTimeStart mainLobeTimeEnd mainLobeTimeEnd mainLobeTimeStart], ...
              [T1 T1 max(x)*1.1 max(x)*1.1], 'yellow', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
-        text(0, max(x)*0.8, sprintf('主瓣幅度>=0.8持续时间: %.2f ns (要求Tw≥%.1f ns, 信道%d)', ...
-                                    mainLobeDuration_ns, MIN_MAINLOBE_DURATION_NS, channelNumber), ...
-             'HorizontalAlignment', 'center', 'FontSize', 10, 'BackgroundColor', 'white');
+        
     end
     
     title('互相关') % 设置子图标题
@@ -454,11 +409,27 @@ yMax = TIME_MASK_Y_MAX; % y轴最大值
 axis([xMin xMax yMin yMax]) % 设置坐标轴范围
 t0 = 0; % t=0
 
-% 绘制模板区域
+% 绘制模板区域（根据更新的时域模板定义）
 a = TIME_MASK_ALPHA; % 透明度
 darkRed = [200, 0, 0]/255; % 深红色
+% 上模板: t<-1.25Tp(y≤0.015), -1.25Tp≤t≤1.0Tp(y≤1.0), t>1.0Tp(y≤0.3)
 patch([xMin xMin t0-1.25 t0-1.25 t0+1 t0+1 xMax xMax], [yMax 0.015 0.015 1 1 0.3 0.3 yMax], darkRed, 'FaceAlpha', a); % 上模板
+% 下模板: t<0Tp(y≥-0.015), 0Tp≤t≤2.0Tp(y≥-0.5), t>2.0Tp(y≥-0.3)
 patch([xMin xMin t0 t0 t0+2 t0+2 xMax xMax], [yMin -0.015 -0.015 -0.5 -0.5 -0.3 -0.3 yMin], darkRed, 'FaceAlpha', a); % 下模板
+
+% 标记违规点
+hold on;
+if numViolations > 0
+    % 绘制违规点
+    violationTimes = timePulse_Tp(violationPoints);
+    violationAmplitudes = pulseNormalized(violationPoints);
+    scatter(violationTimes, violationAmplitudes, 50, 'red', 'filled', 'MarkerEdgeColor', 'black', 'LineWidth', 1);
+    
+    % 添加违规点数量的文本标注
+    text(xMax*0.05, yMin*0.8, sprintf('违规点: %d个 (%.1f%%)', numViolations, 100*numViolations/length(pulseNormalized)), ...
+         'Color', 'red', 'FontSize', 10, 'FontWeight', 'bold', 'BackgroundColor', 'white');
+end
+hold off;
 
 xlabel('时间 (Tp)') % 设置x轴标签
 title('巴特沃斯脉冲的时域模板') % 设置标题

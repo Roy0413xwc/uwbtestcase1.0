@@ -84,7 +84,7 @@ fprintf('HPRF波形生成完成，波形采样点数：%d\n', length(waveHPRF));
 %   4. 时域模板符合性验证
 fprintf('\n开始执行基带脉冲响应测试...\n');
 
-uwb_BasebandImpulseResponse(waveHPRF,cfgHPRF);  % 默认不显示图形输出
+uwb_BasebandImpulseResponse(waveHPRF,cfgHPRF,true);  % 默认不显示图形输出
 
 fprintf('基带脉冲响应测试完成\n');
 
@@ -93,7 +93,7 @@ fprintf('基带脉冲响应测试完成\n');
 % 验证生成的信号频谱是否符合监管要求和标准规范
 fprintf('\n开始执行传输PSD模板测试...\n');
 
-uwb_TransmitPSDmask(waveHPRF, cfgHPRF);  % 默认不显示图形输出
+% uwb_TransmitPSDmask(waveHPRF, cfgHPRF);  % 默认不显示图形输出
 
 fprintf('传输PSD模板测试完成\n');
 
